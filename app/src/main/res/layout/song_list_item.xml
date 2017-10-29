@@ -9,9 +9,9 @@
         android:layout_width="match_parent"
         android:layout_height="130dp"
         android:layout_margin="5dp"
-        app:cardElevation="5dp"
+        app:cardElevation="10dp"
         app:cardCornerRadius="4dp"
-        app:cardBackgroundColor="#a067">
+        app:cardBackgroundColor="#aaff">
         <LinearLayout
             android:orientation="vertical"
             android:layout_width="match_parent"
