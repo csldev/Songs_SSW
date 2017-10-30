@@ -1,12 +1,17 @@
 package com.compassl.anji.songs_ssw;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Typeface;
 import android.support.v7.widget.CardView;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.SearchView;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -18,27 +23,75 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.Inflater;
 
+import static android.content.ContentValues.TAG;
+
 /**
  * Created by Administrator on 2017/10/28.
  */
+
 public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
 
     private List<Song> mSongList = new ArrayList<>();
     private Context mContext;
+    private OnItemClickListenerRV mListener = null;
+
+
+    public static interface OnItemClickListenerRV{
+        void onItemClickRV(View view, int position);
+    }
+
+    public void setOnItemClickListenerRV(OnItemClickListenerRV listener){
+            this.mListener = listener;
+    }
+
 
     @Override
     public ViewHolder onCreateViewHolder(final ViewGroup parent, int viewType) {
         if (mContext==null){
             mContext = parent.getContext();
         }
-        View view = LayoutInflater.from(mContext).inflate(R.layout.song_list_item,parent,false);
+        final View view = LayoutInflater.from(mContext).inflate(R.layout.song_list_item,parent,false);
         final ViewHolder holder = new ViewHolder(view);
+
         holder.cardView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Toast.makeText(parent.getContext(),"change"+holder.getAdapterPosition(),Toast.LENGTH_SHORT).show();
+                if (mListener!=null){
+                    mListener.onItemClickRV(v, (int)v.getTag());
+                    Log.d(TAG, "here");
+                }
             }
         });
+
+       /*
+        holder.cardView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switch (holder.getAdapterPosition()){
+                    case 0:
+
+                        break;
+                    case 1:
+                        break;
+                    case 2:
+                        break;
+                    case 3:
+                        break;
+                    case 4:
+                        break;
+                    case 5:
+                        break;
+                    case 6:
+                        break;
+                    case 7:
+                        break;
+                    case 8:
+                        break;
+
+                }
+            }
+        });
+        */
         return holder;
     }
 
@@ -50,7 +103,7 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
         //holder.song_name.setEnabled(false);
         holder.song_name.getPaint().setFakeBoldText(true);
         Glide.with(mContext).load(song.getImgRes()).into(holder.song_img);
-
+        holder.itemView.setTag(position);
     }
 
     @Override
@@ -73,8 +126,6 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
             song_name = (TextView) itemView.findViewById(R.id.tv_song_name);
         }
     }
-
-
 
 
 }

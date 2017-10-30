@@ -1,5 +1,6 @@
 package com.compassl.anji.songs_ssw;
 
+import android.app.Activity;
 import android.graphics.Color;
 import android.icu.text.IDNA;
 import android.os.Build;
@@ -26,30 +27,25 @@ public class MainActivity extends AppCompatActivity {
 
     private static final String TAG = "DEBUG";
 
-    private FragmentForChoose frag1;
+    private FragmentForPlaying frag1;
     private static final int SONG_ACCOUNT=9;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         if (Build.VERSION.SDK_INT>=21){
             View decorView = getWindow().getDecorView();
             decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
             getWindow().setStatusBarColor(Color.TRANSPARENT);
         }
-
         setContentView(R.layout.activity_main);
-
 
         LitePal.getDatabase();
         SongInfo songInfo = DataSupport.findLast(SongInfo.class);
         if(songInfo==null || songInfo.getNewId()!=SONG_ACCOUNT){
             InitialTool.initSongInfo(this);
         }
-
-
         List<SongInfo> songInfoList = DataSupport.findAll(SongInfo.class);
         for (int i=0;i<songInfoList.size();i++){
             Log.d(TAG, songInfoList.get(i).getNewId()+"");
@@ -58,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
 
 
 
-        frag1 = new FragmentForChoose();
+        frag1 = new FragmentForPlaying();
         FragmentManager manager = getSupportFragmentManager();
         FragmentTransaction transaction = manager.beginTransaction();
         transaction.replace(R.id.main_frameview,frag1);
@@ -67,7 +63,6 @@ public class MainActivity extends AppCompatActivity {
 
 
     }
-
 
 
 }
