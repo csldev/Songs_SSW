@@ -29,15 +29,16 @@ import static android.content.ContentValues.TAG;
  * Created by Administrator on 2017/10/28.
  */
 
-public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
+public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder>{
 
     private List<Song> mSongList = new ArrayList<>();
     private Context mContext;
     private OnItemClickListenerRV mListener = null;
+    private int currentPosition;
 
 
     public static interface OnItemClickListenerRV{
-        void onItemClickRV(View view, int position);
+        void onItemClickRV(int position);
     }
 
     public void setOnItemClickListenerRV(OnItemClickListenerRV listener){
@@ -52,46 +53,17 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
         }
         final View view = LayoutInflater.from(mContext).inflate(R.layout.song_list_item,parent,false);
         final ViewHolder holder = new ViewHolder(view);
-
+        currentPosition= holder.getAdapterPosition();
+        //holder.cardView.setOnClickListener(this);
         holder.cardView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (mListener!=null){
-                    mListener.onItemClickRV(v, (int)v.getTag());
-                    Log.d(TAG, "here");
+                    int position = holder.getAdapterPosition();
+                    mListener.onItemClickRV(position);
                 }
             }
         });
-
-       /*
-        holder.cardView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                switch (holder.getAdapterPosition()){
-                    case 0:
-
-                        break;
-                    case 1:
-                        break;
-                    case 2:
-                        break;
-                    case 3:
-                        break;
-                    case 4:
-                        break;
-                    case 5:
-                        break;
-                    case 6:
-                        break;
-                    case 7:
-                        break;
-                    case 8:
-                        break;
-
-                }
-            }
-        });
-        */
         return holder;
     }
 
@@ -103,7 +75,7 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
         //holder.song_name.setEnabled(false);
         holder.song_name.getPaint().setFakeBoldText(true);
         Glide.with(mContext).load(song.getImgRes()).into(holder.song_img);
-        holder.itemView.setTag(position);
+        //holder.itemView.setTag(position);
     }
 
     @Override
@@ -115,10 +87,11 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder> {
         this.mSongList = mSongList;
     }
 
-    static class ViewHolder extends RecyclerView.ViewHolder{
+    static class ViewHolder extends RecyclerView.ViewHolder {
         CardView cardView;
         ImageView song_img;
         TextView song_name;
+
         public ViewHolder(View itemView) {
             super(itemView);
             cardView = (CardView) itemView.findViewById(R.id.cv_item);

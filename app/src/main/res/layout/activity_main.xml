@@ -1,17 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app = "http://schemas.android.com/apk/res-auto"
     android:id="@+id/activity_main"
+    android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     tools:context="com.compassl.anji.songs_ssw.MainActivity">
 
-    <FrameLayout
-        android:id="@+id/main_frameview"
+    <ImageView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#9abc">
-    </FrameLayout>
+        android:id="@+id/iv_background"
+        android:scaleType="centerCrop"/>
 
+    <android.support.v4.widget.DrawerLayout
+        android:layout_marginTop="40dp"
+        android:id="@+id/dl_choose_song"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+        <include layout="@layout/fragment_for_playing"/>
+        <include android:layout_gravity="start"
+            android:layout_height="match_parent"
+            android:layout_width="match_parent"
+            layout="@layout/fragment_for_choose" />
+    </android.support.v4.widget.DrawerLayout>
 
-</RelativeLayout>
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/fbt_menu"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:layout_marginStart="5dp"
+        app:fabSize="mini"
+        app:elevation="8dp"
+        android:src="@drawable/home"
+        android:scaleType="fitXY"/>
+
+</FrameLayout>
