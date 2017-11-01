@@ -1,10 +1,15 @@
 package com.compassl.anji.songs_ssw;
 
 import android.app.Activity;
+import android.app.Dialog;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.icu.text.IDNA;
 import android.media.MediaPlayer;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
@@ -13,8 +18,10 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.net.ConnectivityManagerCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.RecyclerView;
@@ -37,12 +44,14 @@ import com.bumptech.glide.util.Util;
 import com.compassl.anji.songs_ssw.db.SongInfo;
 import com.compassl.anji.songs_ssw.util.HttpUtil;
 import com.compassl.anji.songs_ssw.util.InitialTool;
+import com.compassl.anji.songs_ssw.util.MathUtil;
 
 import org.litepal.LitePal;
 import org.litepal.crud.DataSupport;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 
@@ -59,6 +68,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final int MODE_LIST_LOOP = 1;
     private static final int MODE_SINGLE_LOOP = 2;
     private static final int MODE_RANDOM = 3;
+    private static final int MODE_PLAY_BY_ORDER = 4;
     private final int LY_PAGE=1;
     private final int BS_PAGE=2;
     private static int currentPage=1;
@@ -70,7 +80,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private ImageButton bt_play_pause;
     private ImageButton bt_next;
     private ImageButton bt_mode;
-    private ImageButton bt_list;
+    private ImageButton bt_stop;
     private FloatingActionButton fbt_home;
     private DrawerLayout drawerLayout;
     private TextView tv_ly;
@@ -106,7 +116,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 default:
                     break;
             }
-            tv_display_time_current.setText(getDisplayTime(mediaPlayer.getCurrentPosition()));
+            tv_display_time_current.setText(MathUtil.getDisplayTime(mediaPlayer.getCurrentPosition()));
         }
 
     };
@@ -121,37 +131,41 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             getWindow().setStatusBarColor(Color.TRANSPARENT);
         }
         setContentView(R.layout.activity_main);
-
         iv_background = (ImageView) findViewById(R.id.iv_background);
-        loadBingPic();
+
+        SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
+        String bingPic = prefs.getString("bingPic",null);
+        if(isNewDay() || bingPic == null){
+            ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo networkInfo = mConnectivityManager.getActiveNetworkInfo();
+            if (networkInfo!=null && networkInfo.isAvailable()){
+                loadBingPic();
+            }else {
+                Glide.with(this).load(bingPic).into(iv_background);
+            }
+        }else {
+            Glide.with(this).load(bingPic).into(iv_background);
+        }
+
+
         vf_ly_bs = (ViewFlipper) findViewById(R.id.vf_ly_bs);
         bt_previous = (ImageButton) findViewById(R.id.bt_previous);
         bt_play_pause = (ImageButton) findViewById(R.id.bt_play_and_pause);
         bt_next = (ImageButton) findViewById(R.id.bt_next);
         bt_mode = (ImageButton) findViewById(R.id.bt_mode);
-        bt_list = (ImageButton) findViewById(R.id.bt_list);
+        bt_stop = (ImageButton) findViewById(R.id.bt_stop);
         fbt_home = (FloatingActionButton) findViewById(R.id.fbt_menu);
         drawerLayout = (DrawerLayout) findViewById(R.id.dl_choose_song);
         tv_bs = (TextView) findViewById(R.id.tv_bacground_story_view);
         tv_ly = (TextView) findViewById(R.id.tv_lyrics_view);
         tv_bs.getPaint().setFakeBoldText(true);
         tv_ly.getPaint().setFakeBoldText(true);
-        //tv_ly.setMovementMethod(ScrollingMovementMethod.getInstance());
-        //tv_bs.setMovementMethod(ScrollingMovementMethod.getInstance());
         tv_display_time_total = (TextView) findViewById(R.id.tv_display_time_total);
         tv_display_time_current = (TextView) findViewById(R.id.tv_display_time_current);
         tv_display_time_current.getPaint().setFakeBoldText(true);
         tv_display_time_total.getPaint().setFakeBoldText(true);
 
-/*
-        SharedPreferences pref = getSharedPreferences("bingPic",MODE_PRIVATE);
-        String bingPic = pref.getString("bingPic","");
-        if (bingPic!=null){
-            Glide.with(this).load(bingPic).into(iv_background);
-        }else {
-            loadBingPic();
-        }
-*/
+
         sb_song_play_progress = (SeekBar) findViewById(R.id.sb_song_progress);
         sb_song_play_progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
@@ -180,7 +194,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         }).start();
 
-        initList();
+        songList=InitialTool.initSongChoose(MainActivity.this);
         rv = (RecyclerView) findViewById(R.id.rv_for_choose);
         StaggeredGridLayoutManager manager = new StaggeredGridLayoutManager(3,StaggeredGridLayoutManager.VERTICAL);
         rv.setLayoutManager(manager);
@@ -193,13 +207,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         bt_play_pause.setOnClickListener(this);
         bt_next.setOnClickListener(this);
         bt_mode.setOnClickListener(this);
-        bt_list.setOnClickListener(this);
+        bt_stop.setOnClickListener(this);
         fbt_home.setOnClickListener(this);
         vf_ly_bs.setOnTouchListener(this);
 
         changeSong(1);
         bt_play_pause.setImageResource(R.drawable.play);
 
+    }
+
+    private boolean isNewDay() {
+        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
+        int year = prefs.getInt("year",0);
+        int day_of_year=prefs.getInt("day_of_year",0);
+        Calendar date = Calendar.getInstance();
+        int year_now = date.get(Calendar.YEAR);
+        int day_of_year_now = date.get(Calendar.DAY_OF_YEAR);
+        return !( year_now==year && day_of_year_now==day_of_year );
     }
 
     private void loadBingPic() {
@@ -221,6 +245,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                         Glide.with(MainActivity.this).load(bingPic).into(iv_background);
                     }
                 });
+                SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
+                prefs.edit().putString("todayPic",bingPic).apply();
             }
         });
     }
@@ -229,10 +255,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         index=i;
         mediaPlayer.reset();
 
-        if (MODE==MODE_RANDOM) {
+        if (MODE == MODE_RANDOM) {
             int temp = new Random().nextInt(SONG_ACCOUNT)+1;
             index = (temp==index)?temp+1:temp;
             index = (index>SONG_ACCOUNT)?1:index;
+        }
+        if (MODE == MODE_PLAY_BY_ORDER && index == 1){
+            onDestroy();
         }
 
         switch (index){
@@ -282,34 +311,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 mediaPlayer=MediaPlayer.create(this,R.raw.ssw09bjlnxt);
                 break;
         }
-        switch (MODE){
-            case MODE_LIST_LOOP:
-                mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                    @Override
-                    public void onCompletion(MediaPlayer mp) {
-                        index = (index>=SONG_ACCOUNT)?0:index;
-                        changeSong(++index);
-                        mediaPlayer.start();
-                    }
-                });
-                break;
-            case MODE_RANDOM:
-                mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                    @Override
-                    public void onCompletion(MediaPlayer mp) {
-                        int temp = new Random().nextInt(SONG_ACCOUNT)+1;
-                        index = (temp==index)?temp+1:temp;
-                        index = (index>SONG_ACCOUNT)?1:index;
-                        changeSong(index);
-                        Log.d("DEBUG", index+"");
-                        mediaPlayer.start();
-                    }
-                });
-                break;
-            default:
-                break;
-        }
-        tv_display_time_total.setText(getDisplayTime(mediaPlayer.getDuration()));
+
+        mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+            @Override
+            public void onCompletion(MediaPlayer mp) {
+                index = (index>=SONG_ACCOUNT)?0:index;
+                changeSong(++index);
+                mediaPlayer.start();
+            }
+        });
+        tv_display_time_total.setText(MathUtil.getDisplayTime(mediaPlayer.getDuration()));
         bt_play_pause.setImageResource(R.drawable.pause);
     }
 
@@ -348,28 +359,37 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     MODE = MODE_SINGLE_LOOP;
                     mediaPlayer.setLooping(true);
                     bt_mode.setImageResource(R.drawable.single);
+                    Toast.makeText(MainActivity.this,"单曲循环",Toast.LENGTH_SHORT).show();
                 }else if (MODE == MODE_SINGLE_LOOP){
                     MODE = MODE_RANDOM;
                     mediaPlayer.setLooping(false);
                     bt_mode.setImageResource(R.drawable.random_play);
+                    Toast.makeText(MainActivity.this,"随机播放",Toast.LENGTH_SHORT).show();
                 }else if (MODE == MODE_RANDOM){
+                    MODE = MODE_PLAY_BY_ORDER;
+                    mediaPlayer.setLooping(false);
+                    bt_mode.setImageResource(R.drawable.play_by_order);
+                    Toast.makeText(MainActivity.this,"顺序播放",Toast.LENGTH_SHORT).show();
+                }else if(MODE == MODE_PLAY_BY_ORDER){
                     MODE = MODE_LIST_LOOP;
                     mediaPlayer.setLooping(false);
                     bt_mode.setImageResource(R.drawable.allplay);
+                    Toast.makeText(MainActivity.this,"列表循环",Toast.LENGTH_SHORT).show();
                 }
                 break;
-            case R.id.bt_list:
+            case R.id.bt_stop:
+                onBackPressed();
                 break;
             case R.id.fbt_menu:
                 drawerLayout.openDrawer(GravityCompat.START);
                 break;
         }
-
     }
-
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
+        tv_ly.setMovementMethod(ScrollingMovementMethod.getInstance());
+        tv_bs.setMovementMethod(ScrollingMovementMethod.getInstance());
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             // 取得左右滑动时手指按下的X坐标
             touchDownX = event.getX();
@@ -407,71 +427,40 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         mediaPlayer.start();
     }
 
-    private String getDisplayTime(int time) {
-        int min = time/60000;
-        int sec = time%60000/1000;
-        String min_string;
-        String sec_string;
-        if (min/10<1){
-            min_string = "0"+min;
-        }else {
-            min_string = ""+min;
-        }
-        if (sec/10<1){
-            sec_string = "0"+sec;
-        }else {
-            sec_string = ""+sec;
-        }
-        return min_string+":"+sec_string;
-    }
-
-    private void initList() {
-        songList.clear();
-        //1
-        Song song1 = new Song(getResources().getString(R.string.one),
-                R.drawable.ssw01aqjx);
-        songList.add(song1);
-        //2
-        Song song2 = new Song(getResources().getString(R.string.two),
-                R.drawable.ssw02ssw);
-        songList.add(song2);
-        //3
-        Song song3 = new Song(getResources().getString(R.string.three),
-                R.drawable.ssw03zxl);
-        songList.add(song3);
-        //4
-        Song song4 = new Song(getResources().getString(R.string.four),
-                R.drawable.ssw04xty);
-        songList.add(song4);
-        //5
-        Song song5 = new Song(getResources().getString(R.string.five),
-                R.drawable.ssw05yzwwdg);
-        songList.add(song5);
-        //6
-        Song song6 = new Song(getResources().getString(R.string.six),
-                R.drawable.ssw06yyc);
-        songList.add(song6);
-        //7
-        Song song7 = new Song(getResources().getString(R.string.seven),
-                R.drawable.ssw07ylq);
-        songList.add(song7);
-        //8
-        Song song8 = new Song(getResources().getString(R.string.eight),
-                R.drawable.ssw08xc);
-        songList.add(song8);
-        //9
-        Song song9 = new Song(getResources().getString(R.string.nine),
-                R.drawable.ssw09bjlnxt);
-        songList.add(song9);
-
+    @Override
+    public void onBackPressed() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        builder.setTitle("退出");
+        builder.setMessage("确认要退出应用吗？");
+        builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                onDestroy();
+            }
+        });
+        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                if (!mediaPlayer.isPlaying()){
+                    mediaPlayer.start();
+                }
+            }
+        });
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
+        mediaPlayer.pause();
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         if (mediaPlayer!=null){
             mediaPlayer.stop();
             mediaPlayer.release();
         }
+        Calendar date = Calendar.getInstance();
+        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
+        prefs.edit().putInt("year",date.get(Calendar.YEAR)).putInt("day_of_year",date.get(Calendar.DAY_OF_YEAR)).apply();
+        //super.onDestroy();
+        finish();
     }
 }

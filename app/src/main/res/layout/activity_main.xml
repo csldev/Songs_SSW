@@ -6,35 +6,42 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#0bb"
     tools:context="com.compassl.anji.songs_ssw.MainActivity">
 
-    <ImageView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:id="@+id/iv_background"
-        android:scaleType="centerCrop"/>
-
-    <android.support.v4.widget.DrawerLayout
-        android:layout_marginTop="40dp"
-        android:id="@+id/dl_choose_song"
+    <android.support.design.widget.CoordinatorLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
-        <include layout="@layout/fragment_for_playing"/>
-        <include android:layout_gravity="start"
-            android:layout_height="match_parent"
+        <ImageView
             android:layout_width="match_parent"
-            layout="@layout/fragment_for_choose" />
-    </android.support.v4.widget.DrawerLayout>
+            android:layout_height="match_parent"
+            android:id="@+id/iv_background"
+            android:scaleType="centerCrop"/>
 
-    <android.support.design.widget.FloatingActionButton
-        android:id="@+id/fbt_menu"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:layout_marginStart="5dp"
-        app:fabSize="mini"
-        app:elevation="8dp"
-        android:src="@drawable/home"
-        android:scaleType="fitXY"/>
+        <android.support.v4.widget.DrawerLayout
+            android:id="@+id/dl_choose_song"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <include layout="@layout/fragment_for_playing"/>
+            <include android:layout_gravity="start"
+                android:layout_height="match_parent"
+                android:layout_width="match_parent"
+                android:layout_marginTop="40dp"
+                layout="@layout/fragment_for_choose" />
+        </android.support.v4.widget.DrawerLayout>
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/fbt_menu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            app:fabSize="mini"
+            app:elevation="8dp"
+            android:src="@drawable/home"
+            android:backgroundTint="#8822abed"
+            app:rippleColor="#8833aa55"
+            android:scaleType="fitXY"
+            app:borderWidth="0dp" />
+    </android.support.design.widget.CoordinatorLayout>
 
 </FrameLayout>

@@ -1,17 +1,67 @@
 package com.compassl.anji.songs_ssw.util;
 
 import android.content.Context;
+import android.content.pm.ProviderInfo;
 
 import com.compassl.anji.songs_ssw.R;
+import com.compassl.anji.songs_ssw.Song;
 import com.compassl.anji.songs_ssw.db.SongInfo;
 
 import org.litepal.LitePal;
 import org.litepal.crud.DataSupport;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Created by Administrator on 2017/10/28.
  */
 public class InitialTool {
+
+
+    public static List<Song> initSongChoose(Context context){
+            List<Song> songList = new ArrayList<>();
+            songList.clear();
+            //1
+            Song song1 = new Song(context.getResources().getString(R.string.one),
+                    R.drawable.ssw01aqjx);
+            songList.add(song1);
+            //2
+            Song song2 = new Song(context.getResources().getString(R.string.two),
+                    R.drawable.ssw02ssw);
+            songList.add(song2);
+            //3
+            Song song3 = new Song(context.getResources().getString(R.string.three),
+                    R.drawable.ssw03zxl);
+            songList.add(song3);
+            //4
+            Song song4 = new Song(context.getResources().getString(R.string.four),
+                    R.drawable.ssw04xty);
+            songList.add(song4);
+            //5
+            Song song5 = new Song(context.getResources().getString(R.string.five),
+                    R.drawable.ssw05yzwwdg);
+            songList.add(song5);
+            //6
+            Song song6 = new Song(context.getResources().getString(R.string.six),
+                    R.drawable.ssw06yyc);
+            songList.add(song6);
+            //7
+            Song song7 = new Song(context.getResources().getString(R.string.seven),
+                    R.drawable.ssw07ylq);
+            songList.add(song7);
+            //8
+            Song song8 = new Song(context.getResources().getString(R.string.eight),
+                    R.drawable.ssw08xc);
+            songList.add(song8);
+            //9
+            Song song9 = new Song(context.getResources().getString(R.string.nine),
+                    R.drawable.ssw09bjlnxt);
+            songList.add(song9);
+        return songList;
+    }
+
+
 
     public static void initSongInfo(Context context){
 
