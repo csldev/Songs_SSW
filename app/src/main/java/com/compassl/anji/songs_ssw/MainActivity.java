@@ -5,6 +5,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
+import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
 import android.icu.text.IDNA;
 import android.media.MediaPlayer;
@@ -40,10 +41,12 @@ import android.widget.Toast;
 import android.widget.ViewFlipper;
 
 import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.resource.file.FileDecoder;
 import com.bumptech.glide.util.Util;
 import com.compassl.anji.songs_ssw.db.SongInfo;
 import com.compassl.anji.songs_ssw.util.HttpUtil;
 import com.compassl.anji.songs_ssw.util.InitialTool;
+import com.compassl.anji.songs_ssw.util.LrcToString;
 import com.compassl.anji.songs_ssw.util.MathUtil;
 
 import org.litepal.LitePal;
@@ -55,13 +58,14 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 
+import me.wcy.lrcview.LrcView;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 
 import static android.content.ContentValues.TAG;
 
-public class MainActivity extends AppCompatActivity implements View.OnClickListener,View.OnTouchListener,RvAdapter.OnItemClickListenerRV{
+public class MainActivity extends AppCompatActivity implements View.OnClickListener,RvAdapter.OnItemClickListenerRV{
 
     private static final int SONG_ACCOUNT=9;
     private static final int SEEK_BAR_UPDATE = 1;
@@ -69,22 +73,22 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final int MODE_SINGLE_LOOP = 2;
     private static final int MODE_RANDOM = 3;
     private static final int MODE_PLAY_BY_ORDER = 4;
-    private final int LY_PAGE=1;
-    private final int BS_PAGE=2;
-    private static int currentPage=1;
-    private static int MODE = 1;
+    private static final int CURRENT_LY = 1;
+    private static final int CURRENT_BS = 2;
+    private static int currentPage=CURRENT_LY;
+    private static int MODE = MODE_LIST_LOOP;
 
+    private int index=1;
 
     private ViewFlipper vf_ly_bs;
     private ImageButton bt_previous;
     private ImageButton bt_play_pause;
     private ImageButton bt_next;
     private ImageButton bt_mode;
-    private ImageButton bt_stop;
+    private ImageButton bt_ly_bs;
     private FloatingActionButton fbt_home;
     private DrawerLayout drawerLayout;
-    private TextView tv_ly;
-    private TextView tv_bs;
+    private MyTextView tv_bs;
     private List<Song> songList = new ArrayList<>();
     private RvAdapter adapter;
     private RecyclerView rv;
@@ -92,15 +96,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private TextView tv_display_time_current;
     private TextView tv_display_time_total;
     private ImageView iv_background;
-
-    private int index=1;
-    private float touchDownX;  // 手指按下的X坐标
-    private float touchUpX;  //手指松开的X坐标
-    private int total_time;
-    private int current_time;
-
+    private MyLrcView lv_ly;
     private MediaPlayer mediaPlayer = new MediaPlayer();
 
+    //Handler 类，处理子线程发出的请求
     private Handler handler = new Handler(){
 
         public void handleMessage(Message message){
@@ -112,18 +111,19 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     try {
                         sb_song_play_progress.setProgress(mediaPlayer.getCurrentPosition());
                     }catch (Exception e ){e.printStackTrace();}
+                    lv_ly.updateTime(mediaPlayer.getCurrentPosition());
                     break;
                 default:
                     break;
             }
             tv_display_time_current.setText(MathUtil.getDisplayTime(mediaPlayer.getCurrentPosition()));
         }
-
     };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        //设置融合通知栏
         if (Build.VERSION.SDK_INT>=21){
             View decorView = getWindow().getDecorView();
             decorView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|
@@ -131,42 +131,112 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             getWindow().setStatusBarColor(Color.TRANSPARENT);
         }
         setContentView(R.layout.activity_main);
-        iv_background = (ImageView) findViewById(R.id.iv_background);
 
+        //设置背景图案
+        iv_background = (ImageView) findViewById(R.id.iv_background);
         SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
         String bingPic = prefs.getString("bingPic",null);
-        if(isNewDay() || bingPic == null){
+        Glide.with(this).load(bingPic).into(iv_background);
+        if(isNewDay() || bingPic == null) {
             ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo networkInfo = mConnectivityManager.getActiveNetworkInfo();
-            if (networkInfo!=null && networkInfo.isAvailable()){
+            if (networkInfo != null && networkInfo.isAvailable()) {
                 loadBingPic();
-            }else {
-                Glide.with(this).load(bingPic).into(iv_background);
             }
-        }else {
-            Glide.with(this).load(bingPic).into(iv_background);
         }
 
-
+        //加载各类控件
         vf_ly_bs = (ViewFlipper) findViewById(R.id.vf_ly_bs);
         bt_previous = (ImageButton) findViewById(R.id.bt_previous);
         bt_play_pause = (ImageButton) findViewById(R.id.bt_play_and_pause);
         bt_next = (ImageButton) findViewById(R.id.bt_next);
         bt_mode = (ImageButton) findViewById(R.id.bt_mode);
-        bt_stop = (ImageButton) findViewById(R.id.bt_stop);
+        bt_ly_bs = (ImageButton) findViewById(R.id.bt_ly_bs);
         fbt_home = (FloatingActionButton) findViewById(R.id.fbt_menu);
         drawerLayout = (DrawerLayout) findViewById(R.id.dl_choose_song);
-        tv_bs = (TextView) findViewById(R.id.tv_bacground_story_view);
-        tv_ly = (TextView) findViewById(R.id.tv_lyrics_view);
-        tv_bs.getPaint().setFakeBoldText(true);
-        tv_ly.getPaint().setFakeBoldText(true);
+        tv_bs = (MyTextView) findViewById(R.id.tv_bacground_story_view);
+        rv = (RecyclerView) findViewById(R.id.rv_for_choose);
+        lv_ly = (MyLrcView) findViewById(R.id.lv_ly);
         tv_display_time_total = (TextView) findViewById(R.id.tv_display_time_total);
         tv_display_time_current = (TextView) findViewById(R.id.tv_display_time_current);
+        sb_song_play_progress = (SeekBar) findViewById(R.id.sb_song_progress);
+
+        //为按钮设置监听事件
+        bt_previous.setOnClickListener(this);
+        bt_play_pause.setOnClickListener(this);
+        bt_next.setOnClickListener(this);
+        bt_mode.setOnClickListener(this);
+        bt_ly_bs.setOnClickListener(this);
+        fbt_home.setOnClickListener(this);
+
+
+        //歌词控件界面的属性设置
+        lv_ly.setLabel("no lyrics");
+        lv_ly.setOnPlayClickListener(new LrcView.OnPlayClickListener() {
+            @Override
+            public boolean onPlayClick(long time) {
+                mediaPlayer.seekTo(mediaPlayer.getCurrentPosition());
+                if (!mediaPlayer.isPlaying()){
+                    mediaPlayer.start();
+                }
+                return true;
+            }
+        });
+        lv_ly.setmOnTouchListenerM(new MyLrcView.OnTouchListenerM() {
+            @Override
+            public void onTouchEventM(String direction) {
+                if ("previous".equals(direction) && currentPage == CURRENT_BS){
+                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_right_in);
+                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_right_out);
+                    vf_ly_bs.showPrevious();
+                    currentPage = CURRENT_LY;
+                }
+                if ("next".equals(direction) && currentPage == CURRENT_LY){
+                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_left_in);
+                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_left_out);
+                    vf_ly_bs.showNext();
+                    currentPage = CURRENT_BS;
+                }
+            }
+        });
+
+        //为背景文案的TextView设置属性
+        tv_bs.getPaint().setFakeBoldText(true);
+        tv_bs.setOntouchListenerM(new MyTextView.onTouchListenerM() {
+            @Override
+            public void onTouch(String direction) {
+                if ("previous".equals(direction) && currentPage == CURRENT_BS){
+                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_right_in);
+                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_right_out);
+                    vf_ly_bs.showPrevious();
+                    currentPage = CURRENT_LY;
+                }else if ("next".equals(direction) && currentPage == CURRENT_LY){
+                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_left_in);
+                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_left_out);
+                    vf_ly_bs.showNext();
+                    currentPage = CURRENT_BS;
+                }
+            }
+            @Override
+            public void onTouch(int Y) {
+                tv_bs.scrollBy(0,Y);
+            }
+            @Override
+            public void resetY() {
+                tv_bs.scrollTo(0, 0);
+            }
+            @Override
+            public void setToBottom(int Y) {
+                tv_bs.scrollTo(0,Y);
+            }
+
+        });
+
+        //为显示歌曲总时间和当前进度的TextView设置属性，使文字加粗
         tv_display_time_current.getPaint().setFakeBoldText(true);
         tv_display_time_total.getPaint().setFakeBoldText(true);
 
-
-        sb_song_play_progress = (SeekBar) findViewById(R.id.sb_song_progress);
+        //歌曲进度显示条设置拖动监听器和子线程操作
         sb_song_play_progress.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
@@ -179,7 +249,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {}
         });
-
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -194,8 +263,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             }
         }).start();
 
+        //加载拉动菜单中recyclerview布局的适配器
         songList=InitialTool.initSongChoose(MainActivity.this);
-        rv = (RecyclerView) findViewById(R.id.rv_for_choose);
         StaggeredGridLayoutManager manager = new StaggeredGridLayoutManager(3,StaggeredGridLayoutManager.VERTICAL);
         rv.setLayoutManager(manager);
         rv.setHasFixedSize(true);
@@ -203,19 +272,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         rv.setAdapter(adapter);
         adapter.setOnItemClickListenerRV(this);
 
-        bt_previous.setOnClickListener(this);
-        bt_play_pause.setOnClickListener(this);
-        bt_next.setOnClickListener(this);
-        bt_mode.setOnClickListener(this);
-        bt_stop.setOnClickListener(this);
-        fbt_home.setOnClickListener(this);
-        vf_ly_bs.setOnTouchListener(this);
-
+        //切换到第一首歌的播放界面
         changeSong(1);
-        bt_play_pause.setImageResource(R.drawable.play);
 
+        //切换歌曲后，由于是第一次打开，歌曲不进行自动播放，而在
+        //changSong(int index)方法中的末尾会把该按钮设为暂停图案，故在此处需要手动设置播放图案。
+        bt_play_pause.setImageResource(R.drawable.play );
     }
 
+    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
     private boolean isNewDay() {
         SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
         int year = prefs.getInt("year",0);
@@ -226,6 +291,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         return !( year_now==year && day_of_year_now==day_of_year );
     }
 
+    //方法：从网上更新背景图片
     private void loadBingPic() {
         String requestBingPic = "http://guolin.tech/api/bing_pic";
         HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
@@ -251,10 +317,10 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         });
     }
 
+    //方法：转换歌曲
     private void changeSong(int i) {
         index=i;
         mediaPlayer.reset();
-
         if (MODE == MODE_RANDOM) {
             int temp = new Random().nextInt(SONG_ACCOUNT)+1;
             index = (temp==index)?temp+1:temp;
@@ -263,55 +329,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (MODE == MODE_PLAY_BY_ORDER && index == 1){
             onDestroy();
         }
-
-        switch (index){
-            case 1:
-                tv_ly.setText(R.string.lyc_01);
-                tv_bs.setText(R.string.bs_01);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw01aqjx);
-                break;
-            case 2:
-                tv_ly.setText(R.string.lyc_02);
-                tv_bs.setText(R.string.bs_02);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw02ssw);
-                break;
-            case 3:
-                tv_ly.setText(R.string.lyc_03);
-                tv_bs.setText(R.string.bs_03);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw03zxl);
-                break;
-            case 4:
-                tv_ly.setText(R.string.lyc_04);
-                tv_bs.setText(R.string.bs_04);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw04xty);
-                break;
-            case 5:
-                tv_ly.setText(R.string.lyc_05);
-                tv_bs.setText(R.string.bs_05);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw05yzwwdg);
-                break;
-            case 6:
-                tv_ly.setText(R.string.lyc_06);
-                tv_bs.setText(R.string.bs_06);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw06yyc);
-                break;
-            case 7:
-                tv_ly.setText(R.string.lyc_07);
-                tv_bs.setText(R.string.bs_07);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw07ylq);
-                break;
-            case 8:
-                tv_ly.setText(R.string.lyc_08);
-                tv_bs.setText(R.string.bs_08);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw08xc);
-                break;
-            case 9:
-                tv_ly.setText(R.string.lyc_09);
-                tv_bs.setText(R.string.bs_09);
-                mediaPlayer=MediaPlayer.create(this,R.raw.ssw09bjlnxt);
-                break;
+        String index_str = (index>9)?index+"":"0"+index;
+        //加载音乐
+        try {
+            String fileName_song = "ssw"+index_str+".mp3";
+            AssetFileDescriptor fd = getAssets().openFd(fileName_song);
+            mediaPlayer.setDataSource(fd.getFileDescriptor(),fd.getStartOffset(),fd.getLength());
+            mediaPlayer.prepare();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
-
+        //装载歌词
+        String fileName = "ssw"+index_str+".txt";
+        try {
+            lv_ly.loadLrc(LrcToString.getLrcToString(MainActivity.this,fileName));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        //装载文案
+        String fileName_bs = "ssw_bs_"+index_str+".txt";
+        try {
+            tv_bs.setText(LrcToString.getLrcToString(MainActivity.this,fileName_bs));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
@@ -324,6 +365,24 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         bt_play_pause.setImageResource(R.drawable.pause);
     }
 
+    //方法：歌词与文案图标的切换
+    private void changeShow() {
+        if (currentPage == CURRENT_LY){
+            currentPage = CURRENT_BS;
+            bt_ly_bs.setImageResource(R.drawable.ly);
+            Toast.makeText(MainActivity.this,"显示背景文案",Toast.LENGTH_SHORT).show();
+            vf_ly_bs.setInAnimation(this,R.anim.push_left_in);
+            vf_ly_bs.setOutAnimation(this,R.anim.push_left_out);
+            vf_ly_bs.showNext();
+        }else {
+            currentPage = CURRENT_LY;
+            bt_ly_bs.setImageResource(R.drawable.bs);
+            Toast.makeText(MainActivity.this,"显示歌词",Toast.LENGTH_SHORT).show();
+            vf_ly_bs.setInAnimation(this,R.anim.push_right_in);
+            vf_ly_bs.setOutAnimation(this,R.anim.push_right_out);
+            vf_ly_bs.showPrevious();
+        }
+    }
 
     @Override
     public void onClick(View v) {
@@ -377,46 +436,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     Toast.makeText(MainActivity.this,"列表循环",Toast.LENGTH_SHORT).show();
                 }
                 break;
-            case R.id.bt_stop:
-                onBackPressed();
+            case R.id.bt_ly_bs:
+                changeShow();
                 break;
             case R.id.fbt_menu:
                 drawerLayout.openDrawer(GravityCompat.START);
                 break;
         }
-    }
-
-    @Override
-    public boolean onTouch(View v, MotionEvent event) {
-        tv_ly.setMovementMethod(ScrollingMovementMethod.getInstance());
-        tv_bs.setMovementMethod(ScrollingMovementMethod.getInstance());
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            // 取得左右滑动时手指按下的X坐标
-            touchDownX = event.getX();
-            return true;
-        } else if (event.getAction() == MotionEvent.ACTION_UP) {
-            // 取得左右滑动时手指松开的X坐标
-            touchUpX = event.getX();
-            // 从左往右，看前一个View
-            if (touchUpX - touchDownX > 100 && currentPage==BS_PAGE) {
-                // 显示上一屏动画
-                vf_ly_bs.setInAnimation(AnimationUtils.loadAnimation(MainActivity.this, R.anim.push_right_in));
-                vf_ly_bs.setOutAnimation(AnimationUtils.loadAnimation(MainActivity.this,R.anim.push_right_out));
-                // 显示上一屏的View
-                vf_ly_bs.showPrevious();
-                // 从右往左，看后一个View
-                currentPage=LY_PAGE;
-            } else if (touchDownX - touchUpX > 100 && currentPage==LY_PAGE) {
-                //显示下一屏的动画
-                vf_ly_bs.setInAnimation(AnimationUtils.loadAnimation(MainActivity.this,R.anim.push_left_in));
-                vf_ly_bs.setOutAnimation(AnimationUtils.loadAnimation(MainActivity.this,R.anim.push_left_out));
-                // 显示下一屏的View
-                vf_ly_bs.showNext();
-                currentPage=BS_PAGE;
-            }
-            return true;
-        }
-        return false;
     }
 
     @Override
@@ -460,7 +486,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Calendar date = Calendar.getInstance();
         SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
         prefs.edit().putInt("year",date.get(Calendar.YEAR)).putInt("day_of_year",date.get(Calendar.DAY_OF_YEAR)).apply();
-        //super.onDestroy();
         finish();
     }
 }

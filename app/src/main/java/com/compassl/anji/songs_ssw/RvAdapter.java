@@ -54,7 +54,6 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder>{
         final View view = LayoutInflater.from(mContext).inflate(R.layout.song_list_item,parent,false);
         final ViewHolder holder = new ViewHolder(view);
         currentPosition= holder.getAdapterPosition();
-        //holder.cardView.setOnClickListener(this);
         holder.cardView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -71,11 +70,8 @@ public class RvAdapter extends RecyclerView.Adapter<RvAdapter.ViewHolder>{
     public void onBindViewHolder(ViewHolder holder, int position) {
         Song song = mSongList.get(position);
         holder.song_name.setText(song.getName());
-        //holder.song_name.setTypeface(Typeface.createFromAsset(mContext.getAssets(),"ssssss.ttf"));
-        //holder.song_name.setEnabled(false);
         holder.song_name.getPaint().setFakeBoldText(true);
         Glide.with(mContext).load(song.getImgRes()).into(holder.song_img);
-        //holder.itemView.setTag(position);
     }
 
     @Override
