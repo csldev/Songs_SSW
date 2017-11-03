@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Color;
@@ -44,6 +45,7 @@ import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.resource.file.FileDecoder;
 import com.bumptech.glide.util.Util;
 import com.compassl.anji.songs_ssw.db.SongInfo;
+import com.compassl.anji.songs_ssw.service.UpdateBackgroundPic;
 import com.compassl.anji.songs_ssw.util.HttpUtil;
 import com.compassl.anji.songs_ssw.util.InitialTool;
 import com.compassl.anji.songs_ssw.util.LrcToString;
@@ -155,14 +157,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         //设置背景图案
         SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
         String bingPic = prefs.getString("todayPic",null);
-        Glide.with(this).load(bingPic).into(iv_background);
-        if(isNewDay() || bingPic == null) {
-            ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo networkInfo = mConnectivityManager.getActiveNetworkInfo();
-            if (networkInfo != null && networkInfo.isAvailable()) {
-                loadBingPic();
-            }
+        if (bingPic != null){
+            Glide.with(this).load(bingPic).into(iv_background);
         }
+        Intent intent = new Intent(this, UpdateBackgroundPic.class);
+        startService(intent);
 
         //为按钮设置监听事件
         bt_previous.setOnClickListener(this);
@@ -288,39 +287,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         bt_play_pause.setImageResource(R.drawable.play );
     }
 
-    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
-    private boolean isNewDay() {
-        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
-        int year = prefs.getInt("year",0);
-        int day_of_year=prefs.getInt("day_of_year",0);
-        Calendar date = Calendar.getInstance();
-        int year_now = date.get(Calendar.YEAR);
-        int day_of_year_now = date.get(Calendar.DAY_OF_YEAR);
-        return !( year_now==year && day_of_year_now==day_of_year );
-    }
-
-    //方法：从网上更新背景图片
-    private void loadBingPic() {
-        String requestBingPic = "http://guolin.tech/api/bing_pic";
-        HttpUtil.sendOkHttpRequest(requestBingPic, new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
-            }
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                final String bingPic = response.body().string();
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Glide.with(MainActivity.this).load(bingPic).into(iv_background);
-                    }
-                });
-                SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
-                prefs.edit().putString("todayPic",bingPic).apply();
-            }
-        });
-    }
+//    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
+//    private boolean isNewDay() {
+//        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
+//        int year = prefs.getInt("year",0);
+//        int day_of_year=prefs.getInt("day_of_year",0);
+//        Calendar date = Calendar.getInstance();
+//        int year_now = date.get(Calendar.YEAR);
+//        int day_of_year_now = date.get(Calendar.DAY_OF_YEAR);
+//        return !( year_now==year && day_of_year_now==day_of_year );
+//    }
 
     //方法：转换歌曲
     private void changeSong(int i) {
@@ -519,6 +495,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     @Override
     public void onBackPressed() {
+        final boolean isPlaying = mediaPlayer.isPlaying();
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setTitle("退出");
         builder.setMessage("确认要退出应用吗？");
@@ -531,14 +508,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                if (!mediaPlayer.isPlaying()){
+                if (isPlaying){
                     mediaPlayer.start();
                 }
             }
         });
         AlertDialog alertDialog = builder.create();
         alertDialog.show();
-        mediaPlayer.pause();
+        if (mediaPlayer.isPlaying()){
+            mediaPlayer.pause();
+        }
     }
 
     @Override
@@ -547,9 +526,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mediaPlayer.stop();
             mediaPlayer.release();
         }
-        Calendar date = Calendar.getInstance();
-        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
-        prefs.edit().putInt("year",date.get(Calendar.YEAR)).putInt("day_of_year",date.get(Calendar.DAY_OF_YEAR)).apply();
+//        Calendar date = Calendar.getInstance();
+//        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
+//        prefs.edit().putInt("year",date.get(Calendar.YEAR)).putInt("day_of_year",date.get(Calendar.DAY_OF_YEAR)).apply();
         finish();
     }
 }

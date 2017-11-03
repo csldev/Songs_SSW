@@ -6,7 +6,6 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#0bb"
     tools:context="com.compassl.anji.songs_ssw.MainActivity">
 
     <android.support.design.widget.CoordinatorLayout
@@ -35,7 +34,7 @@
             android:id="@+id/fbt_menu"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="10dp"
+            android:layout_margin="25dp"
             app:fabSize="mini"
             app:elevation="8dp"
             android:src="@drawable/home"
