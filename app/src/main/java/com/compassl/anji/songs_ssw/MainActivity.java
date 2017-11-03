@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private static final int MODE_SINGLE_LOOP = 2;
     private static final int MODE_RANDOM = 3;
     private static final int MODE_PLAY_BY_ORDER = 4;
+    private static final int CURRENT_INFO = 0;
     private static final int CURRENT_LY = 1;
     private static final int CURRENT_BS = 2;
     private static int currentPage=CURRENT_LY;
@@ -89,6 +90,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private FloatingActionButton fbt_home;
     private DrawerLayout drawerLayout;
     private MyTextView tv_bs;
+    private MyTextView tv_song_info;
     private List<Song> songList = new ArrayList<>();
     private RvAdapter adapter;
     private RecyclerView rv;
@@ -132,19 +134,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         setContentView(R.layout.activity_main);
 
-        //设置背景图案
-        iv_background = (ImageView) findViewById(R.id.iv_background);
-        SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
-        String bingPic = prefs.getString("bingPic",null);
-        Glide.with(this).load(bingPic).into(iv_background);
-        if(isNewDay() || bingPic == null) {
-            ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo networkInfo = mConnectivityManager.getActiveNetworkInfo();
-            if (networkInfo != null && networkInfo.isAvailable()) {
-                loadBingPic();
-            }
-        }
-
         //加载各类控件
         vf_ly_bs = (ViewFlipper) findViewById(R.id.vf_ly_bs);
         bt_previous = (ImageButton) findViewById(R.id.bt_previous);
@@ -155,11 +144,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         fbt_home = (FloatingActionButton) findViewById(R.id.fbt_menu);
         drawerLayout = (DrawerLayout) findViewById(R.id.dl_choose_song);
         tv_bs = (MyTextView) findViewById(R.id.tv_bacground_story_view);
+        tv_song_info = (MyTextView) findViewById(R.id.tv_song_info);
         rv = (RecyclerView) findViewById(R.id.rv_for_choose);
         lv_ly = (MyLrcView) findViewById(R.id.lv_ly);
         tv_display_time_total = (TextView) findViewById(R.id.tv_display_time_total);
         tv_display_time_current = (TextView) findViewById(R.id.tv_display_time_current);
         sb_song_play_progress = (SeekBar) findViewById(R.id.sb_song_progress);
+        iv_background = (ImageView) findViewById(R.id.iv_background);
+
+        //设置背景图案
+        SharedPreferences prefs = getSharedPreferences("bingPic",MODE_PRIVATE);
+        String bingPic = prefs.getString("todayPic",null);
+        Glide.with(this).load(bingPic).into(iv_background);
+        if(isNewDay() || bingPic == null) {
+            ConnectivityManager mConnectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo networkInfo = mConnectivityManager.getActiveNetworkInfo();
+            if (networkInfo != null && networkInfo.isAvailable()) {
+                loadBingPic();
+            }
+        }
 
         //为按钮设置监听事件
         bt_previous.setOnClickListener(this);
@@ -169,7 +172,25 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         bt_ly_bs.setOnClickListener(this);
         fbt_home.setOnClickListener(this);
 
-
+        vf_ly_bs.setDisplayedChild(CURRENT_LY);
+        //为歌曲信息的TextView设置属性
+        tv_song_info.getPaint().setFakeBoldText(true);
+        tv_song_info.setOntouchListenerM(new MyTextView.onTouchListenerM() {
+            @Override
+            public void onTouch(String direction) {
+                if ("previous".equals(direction) && currentPage != CURRENT_INFO){
+                    changeToPrevious();
+                }else if ("next".equals(direction) && currentPage != CURRENT_BS){
+                    changToNext();
+                }
+            }
+            @Override
+            public void onTouch(int Y) {tv_song_info.scrollBy(0,Y);}
+            @Override
+            public void resetY() {tv_song_info.scrollTo(0, 0);}
+            @Override
+            public void setToBottom(int Y) {tv_song_info.scrollTo(0,Y);}
+        });
         //歌词控件界面的属性设置
         lv_ly.setLabel("no lyrics");
         lv_ly.setOnPlayClickListener(new LrcView.OnPlayClickListener() {
@@ -185,36 +206,23 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         lv_ly.setmOnTouchListenerM(new MyLrcView.OnTouchListenerM() {
             @Override
             public void onTouchEventM(String direction) {
-                if ("previous".equals(direction) && currentPage == CURRENT_BS){
-                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_right_in);
-                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_right_out);
-                    vf_ly_bs.showPrevious();
-                    currentPage = CURRENT_LY;
+                if ("previous".equals(direction) && currentPage != CURRENT_INFO){
+                    changeToPrevious();
                 }
-                if ("next".equals(direction) && currentPage == CURRENT_LY){
-                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_left_in);
-                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_left_out);
-                    vf_ly_bs.showNext();
-                    currentPage = CURRENT_BS;
+                if ("next".equals(direction) && currentPage != CURRENT_BS){
+                    changToNext();
                 }
             }
         });
-
         //为背景文案的TextView设置属性
         tv_bs.getPaint().setFakeBoldText(true);
         tv_bs.setOntouchListenerM(new MyTextView.onTouchListenerM() {
             @Override
             public void onTouch(String direction) {
-                if ("previous".equals(direction) && currentPage == CURRENT_BS){
-                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_right_in);
-                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_right_out);
-                    vf_ly_bs.showPrevious();
-                    currentPage = CURRENT_LY;
-                }else if ("next".equals(direction) && currentPage == CURRENT_LY){
-                    vf_ly_bs.setInAnimation(MainActivity.this,R.anim.push_left_in);
-                    vf_ly_bs.setOutAnimation(MainActivity.this,R.anim.push_left_out);
-                    vf_ly_bs.showNext();
-                    currentPage = CURRENT_BS;
+                if ("previous".equals(direction) && currentPage != CURRENT_INFO){
+                    changeToPrevious();
+                }else if ("next".equals(direction) && currentPage != CURRENT_BS){
+                    changToNext();
                 }
             }
             @Override
@@ -302,9 +310,6 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 final String bingPic = response.body().string();
-                SharedPreferences.Editor editor = PreferenceManager.getDefaultSharedPreferences(MainActivity.this).edit();
-                editor.putString("bingPic",bingPic);
-                editor.apply();
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
@@ -339,13 +344,21 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         } catch (IOException e) {
             e.printStackTrace();
         }
-        //装载歌词
+
         String fileName = "ssw"+index_str+".txt";
+        String file_lrc_content = null;
         try {
-            lv_ly.loadLrc(LrcToString.getLrcToString(MainActivity.this,fileName));
+            file_lrc_content = LrcToString.getLrcToString(MainActivity.this,fileName);
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        //装载歌曲信息
+        tv_song_info.setText(LrcToString.getLrcInfo(file_lrc_content));
+
+        //装载歌词
+        lv_ly.loadLrc(file_lrc_content);
+
         //装载文案
         String fileName_bs = "ssw_bs_"+index_str+".txt";
         try {
@@ -353,6 +366,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        //播放器的结束时监听
         mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
             @Override
             public void onCompletion(MediaPlayer mp) {
@@ -361,29 +376,78 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 mediaPlayer.start();
             }
         });
+        //歌词总时间
         tv_display_time_total.setText(MathUtil.getDisplayTime(mediaPlayer.getDuration()));
+        //切换歌曲后自动播放，但是第一次进页面不播放
         bt_play_pause.setImageResource(R.drawable.pause);
+        //显示歌词
+        vf_ly_bs.setDisplayedChild(CURRENT_LY);
+        currentPage = CURRENT_LY;
     }
+
 
     //方法：歌词与文案图标的切换
     private void changeShow() {
-        if (currentPage == CURRENT_LY){
-            currentPage = CURRENT_BS;
-            bt_ly_bs.setImageResource(R.drawable.ly);
-            Toast.makeText(MainActivity.this,"显示背景文案",Toast.LENGTH_SHORT).show();
-            vf_ly_bs.setInAnimation(this,R.anim.push_left_in);
-            vf_ly_bs.setOutAnimation(this,R.anim.push_left_out);
-            vf_ly_bs.showNext();
-        }else {
-            currentPage = CURRENT_LY;
-            bt_ly_bs.setImageResource(R.drawable.bs);
-            Toast.makeText(MainActivity.this,"显示歌词",Toast.LENGTH_SHORT).show();
-            vf_ly_bs.setInAnimation(this,R.anim.push_right_in);
-            vf_ly_bs.setOutAnimation(this,R.anim.push_right_out);
-            vf_ly_bs.showPrevious();
+        changToNext();
+        switch (currentPage){
+            case CURRENT_INFO :
+                bt_ly_bs.setImageResource(R.drawable.song_info);
+                break;
+            case CURRENT_LY :
+                bt_ly_bs.setImageResource(R.drawable.ly);
+                break;
+            case CURRENT_BS :
+                bt_ly_bs.setImageResource(R.drawable.bs);
+                break;
+            default:
+                break;
+        }
+    }
+    private void changeToPrevious() {
+        vf_ly_bs.setInAnimation(this,R.anim.push_right_in);
+        vf_ly_bs.setOutAnimation(this,R.anim.push_right_out);
+        vf_ly_bs.showPrevious();
+        switch (currentPage){
+            case CURRENT_INFO :
+                currentPage = CURRENT_BS;
+                bt_ly_bs.setImageResource(R.drawable.bs);
+                break;
+            case CURRENT_LY :
+               currentPage = CURRENT_INFO;
+                bt_ly_bs.setImageResource(R.drawable.song_info);
+                break;
+            case CURRENT_BS :
+                currentPage = CURRENT_LY;
+                bt_ly_bs.setImageResource(R.drawable.ly);
+                break;
+            default:
+                break;
+        }
+    }
+    private void changToNext() {
+        vf_ly_bs.setInAnimation(this,R.anim.push_left_in);
+        vf_ly_bs.setOutAnimation(this,R.anim.push_left_out);
+        vf_ly_bs.showNext();
+        switch (currentPage){
+            case CURRENT_INFO :
+                currentPage = CURRENT_LY;
+                bt_ly_bs.setImageResource(R.drawable.ly);
+                break;
+            case CURRENT_LY :
+                currentPage = CURRENT_BS;
+                bt_ly_bs.setImageResource(R.drawable.bs);
+                break;
+            case CURRENT_BS :
+                currentPage = CURRENT_INFO;
+                bt_ly_bs.setImageResource(R.drawable.song_info);
+                break;
+            default:
+                break;
         }
     }
 
+
+    //button 监听事件
     @Override
     public void onClick(View v) {
         switch (v.getId()){

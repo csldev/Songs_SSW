@@ -1,6 +1,7 @@
 package com.compassl.anji.songs_ssw;
 
 import android.content.Context;
+import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.util.Printer;
 import android.view.MotionEvent;
@@ -71,8 +72,9 @@ public class MyTextView extends TextView {
             if (totalDeltY<0){
                 totalDeltY = 0;
                 mOntouchListener.resetY();
-            }else if (totalDeltY>150+getMeasuredHeight()){
-                totalDeltY = getMeasuredHeight()+110;
+            }else if (totalDeltY> (getLineBounds(getLineCount()-1,null)-getHeight()) ){
+                totalDeltY = ( getLineBounds(getLineCount()-1,null)-getHeight() )  > 0 ?
+                        getLineBounds(getLineCount()-1,null)-getHeight(): 0;
                 mOntouchListener.setToBottom(totalDeltY);
             }
         }
