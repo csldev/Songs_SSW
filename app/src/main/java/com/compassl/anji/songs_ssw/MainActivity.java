@@ -1,26 +1,26 @@
 package com.compassl.anji.songs_ssw;
 
-import android.app.Activity;
-import android.app.Dialog;
+import android.app.Notification;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.icu.text.IDNA;
 import android.media.MediaPlayer;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
-import android.preference.PreferenceManager;
 import android.support.design.widget.FloatingActionButton;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentTransaction;
-import android.support.v4.net.ConnectivityManagerCompat;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AlertDialog;
@@ -28,44 +28,28 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
-import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
-import android.view.MotionEvent;
 import android.view.View;
-import android.view.animation.AnimationUtils;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.RemoteViews;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
 
 import com.bumptech.glide.Glide;
-import com.bumptech.glide.load.resource.file.FileDecoder;
-import com.bumptech.glide.util.Util;
-import com.compassl.anji.songs_ssw.db.SongInfo;
 import com.compassl.anji.songs_ssw.service.UpdateBackgroundPic;
-import com.compassl.anji.songs_ssw.util.HttpUtil;
 import com.compassl.anji.songs_ssw.util.InitialTool;
 import com.compassl.anji.songs_ssw.util.LrcToString;
 import com.compassl.anji.songs_ssw.util.MathUtil;
 
-import org.litepal.LitePal;
-import org.litepal.crud.DataSupport;
-
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 
 import me.wcy.lrcview.LrcView;
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
-
-import static android.content.ContentValues.TAG;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener,RvAdapter.OnItemClickListenerRV{
 
@@ -101,7 +85,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private TextView tv_display_time_total;
     private ImageView iv_background;
     private MyLrcView lv_ly;
+    //private boolean isServerBinded = false;
     private MediaPlayer mediaPlayer = new MediaPlayer();
+    private NotiReceiver receiver;
+    private IntentFilter filter;
+    private Notification notification;
+    private NotificationManager manager;
+    private NotificationCompat.Builder builder;
 
     //Handler 类，处理子线程发出的请求
     private Handler handler = new Handler(){
@@ -124,6 +114,40 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     };
 
+    class NotiReceiver extends BroadcastReceiver{
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            switch (intent.getIntExtra("noti",-1)){
+                case 0:
+                    playPre();
+                    break;
+                case 1:
+                    changPP();
+                    break;
+                case 2:
+                    playNext();
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+//    public ForegroundService.ForegroundBinder foregroundBinder;
+//    private ServiceConnection connection = new ServiceConnection() {
+//        @Override
+//        public void onServiceConnected(ComponentName name, IBinder service) {
+//            foregroundBinder = (ForegroundService.ForegroundBinder) service;
+//            foregroundBinder.changSong(songList.get(index-1).getName(),songList.get(index-1).getImgRes());
+//        }
+//        @Override
+//        public void onServiceDisconnected(ComponentName name) {}
+//    };
+
+
+    /**
+     * @param savedInstanceState
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -160,8 +184,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         if (bingPic != null){
             Glide.with(this).load(bingPic).into(iv_background);
         }
+        //启动更新背景图片服务
         Intent intent = new Intent(this, UpdateBackgroundPic.class);
         startService(intent);
+
+        //设置广播监听事件
+        receiver = new NotiReceiver();
+        filter = new IntentFilter();
+        filter.addAction("notification_button");
+        registerReceiver(receiver,filter);
 
         //为按钮设置监听事件
         bt_previous.setOnClickListener(this);
@@ -281,13 +312,18 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         //切换到第一首歌的播放界面
         changeSong(1);
+        createNotification();
 
         //切换歌曲后，由于是第一次打开，歌曲不进行自动播放，而在
         //changSong(int index)方法中的末尾会把该按钮设为暂停图案，故在此处需要手动设置播放图案。
         bt_play_pause.setImageResource(R.drawable.play );
+
     }
 
-//    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
+
+
+
+    //    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
 //    private boolean isNewDay() {
 //        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
 //        int year = prefs.getInt("year",0);
@@ -362,6 +398,47 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
 
+    //方法：通知栏
+    private void createNotification(){
+        Intent intent1 = new Intent(this,MainActivity.class);
+        int flag = PendingIntent.FLAG_UPDATE_CURRENT;
+        PendingIntent pi = PendingIntent.getActivity(this,3,intent1,flag);
+        builder = new NotificationCompat.Builder(this);
+        builder.setWhen(System.currentTimeMillis())
+                .setContentTitle("生生忘").setContentText(songList.get(index-1).getName())
+                .setSmallIcon(songList.get(index-1).getImgRes())
+                .setLargeIcon(BitmapFactory.decodeResource(getResources(),R.drawable.home))
+                .setContentIntent(pi)
+                .setContent(getRemoteView())
+                .setOngoing(true);
+        notification = builder.build();
+        manager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        manager.notify(1,notification);
+    }
+    private RemoteViews getRemoteView(){
+        RemoteViews view = new RemoteViews(getPackageName(),R.layout.foreground_layout);
+        view.setOnClickPendingIntent(R.id.ib_fore_pre,getClickPendingIntent(0));
+        view.setOnClickPendingIntent(R.id.ib_fore_p_p,getClickPendingIntent(1));
+        view.setOnClickPendingIntent(R.id.ib_fore_next,getClickPendingIntent(2));
+        //view.setOnClickPendingIntent(R.id.notification_layout,getClickPendingIntent(3));
+        view.setTextViewText(R.id.tv_fore_song_name,songList.get(index-1).getName());
+        view.setImageViewResource(R.id.fore_img,songList.get(index-1).getImgRes());
+        if (mediaPlayer.isPlaying()){
+            view.setImageViewResource(R.id.ib_fore_p_p,R.drawable.pause);
+        }else {
+            view.setImageViewResource(R.id.ib_fore_p_p,R.drawable.play);
+        }
+        return view;
+    }
+    private PendingIntent getClickPendingIntent(int notificationPre) {
+        Intent intent = new Intent("notification_button");
+        intent.putExtra("noti",notificationPre);
+        int flag = PendingIntent.FLAG_UPDATE_CURRENT;
+        PendingIntent clickIntent = PendingIntent.getBroadcast(this, notificationPre, intent, flag );
+        return clickIntent;
+    }
+
+
     //方法：歌词与文案图标的切换
     private void changeShow() {
         changToNext();
@@ -428,30 +505,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     public void onClick(View v) {
         switch (v.getId()){
             case R.id.bt_previous:
-                if (index==1){
-                    changeSong(SONG_ACCOUNT);
-                }else {
-                    changeSong(--index);
-                }
-                mediaPlayer.start();
+                playPre();
                 break;
             case R.id.bt_play_and_pause:
-                if (!mediaPlayer.isPlaying()){
-                    bt_play_pause.setImageResource(R.drawable.pause);
-                    mediaPlayer.start();
-                }else {
-                    bt_play_pause.setImageResource(R.drawable.play);
-                    mediaPlayer.pause();
-                }
-                Log.d(TAG, "onClick: ");
+                changPP();
                 break;
             case R.id.bt_next:
-                if (index==SONG_ACCOUNT){
-                    changeSong(1);
-                }else {
-                    changeSong(++index);
-                }
-                mediaPlayer.start();
+                playNext();
                 break;
             case R.id.bt_mode:
                 if (MODE==MODE_LIST_LOOP){
@@ -484,6 +544,34 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 break;
         }
     }
+    private void playNext() {
+        if (index==SONG_ACCOUNT){
+            changeSong(1);
+        }else {
+            changeSong(++index);
+        }
+        mediaPlayer.start();
+        createNotification();
+    }
+    private void changPP() {
+        if (!mediaPlayer.isPlaying()){
+            bt_play_pause.setImageResource(R.drawable.pause);
+            mediaPlayer.start();
+        }else {
+            bt_play_pause.setImageResource(R.drawable.play);
+            mediaPlayer.pause();
+        }
+        createNotification();
+    }
+    private void playPre() {
+        if (index==1){
+            changeSong(SONG_ACCOUNT);
+        }else {
+            changeSong(--index);
+        }
+        mediaPlayer.start();
+        createNotification();
+    }
 
     @Override
     public void onItemClickRV(int position) {
@@ -491,8 +579,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         drawerLayout.closeDrawers();
         changeSong(index);
         mediaPlayer.start();
+        createNotification();
     }
-
     @Override
     public void onBackPressed() {
         final boolean isPlaying = mediaPlayer.isPlaying();
@@ -526,9 +614,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             mediaPlayer.stop();
             mediaPlayer.release();
         }
+        manager.cancel(1);
+        unregisterReceiver(receiver);
+
 //        Calendar date = Calendar.getInstance();
 //        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
 //        prefs.edit().putInt("year",date.get(Calendar.YEAR)).putInt("day_of_year",date.get(Calendar.DAY_OF_YEAR)).apply();
         finish();
+
+        //stopService(new Intent(this,ForegroundService.class));
     }
 }
