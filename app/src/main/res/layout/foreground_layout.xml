@@ -49,4 +49,12 @@
         android:layout_height="match_parent"
         android:layout_weight="1" />
 
+    <ImageView
+        android:id="@+id/fore_close"
+        android:layout_gravity="center"
+        android:layout_marginEnd="20dp"
+        android:background="@drawable/close"
+        android:layout_width="30dp"
+        android:layout_height="30dp" />
+
 </LinearLayout>

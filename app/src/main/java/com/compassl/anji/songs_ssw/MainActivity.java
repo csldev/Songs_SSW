@@ -14,6 +14,7 @@ import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Handler;
@@ -29,6 +30,7 @@ import android.os.Bundle;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -85,17 +87,30 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private TextView tv_display_time_total;
     private ImageView iv_background;
     private MyLrcView lv_ly;
-    //private boolean isServerBinded = false;
     private MediaPlayer mediaPlayer = new MediaPlayer();
     private NotiReceiver receiver;
     private IntentFilter filter;
     private Notification notification;
     private NotificationManager manager;
     private NotificationCompat.Builder builder;
+    private AudioManager audioManager;
+    //private EarReceiver receiver_ear;
+    private AudioManager.OnAudioFocusChangeListener onAudioFocusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+
+        }
+    };
+
+    public EarReceiver earReceiver = new EarReceiver(){
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            changPP();
+        }
+    };
 
     //Handler 类，处理子线程发出的请求
     private Handler handler = new Handler(){
-
         public void handleMessage(Message message){
             try{
                 sb_song_play_progress.setMax(mediaPlayer.getDuration());
@@ -114,6 +129,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     };
 
+    //监听通知栏发出的广播
     class NotiReceiver extends BroadcastReceiver{
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -127,22 +143,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 case 2:
                     playNext();
                     break;
+                case 3:
+                    onDestroy();
                 default:
                     break;
             }
         }
     }
-
-//    public ForegroundService.ForegroundBinder foregroundBinder;
-//    private ServiceConnection connection = new ServiceConnection() {
-//        @Override
-//        public void onServiceConnected(ComponentName name, IBinder service) {
-//            foregroundBinder = (ForegroundService.ForegroundBinder) service;
-//            foregroundBinder.changSong(songList.get(index-1).getName(),songList.get(index-1).getImgRes());
-//        }
-//        @Override
-//        public void onServiceDisconnected(ComponentName name) {}
-//    };
 
 
     /**
@@ -188,11 +195,28 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Intent intent = new Intent(this, UpdateBackgroundPic.class);
         startService(intent);
 
-        //设置广播监听事件
+        //设置通知栏广播监听事件
         receiver = new NotiReceiver();
         filter = new IntentFilter();
         filter.addAction("notification_button");
         registerReceiver(receiver,filter);
+
+        //设置耳机监听
+        audioManager = (AudioManager) getSystemService(AUDIO_SERVICE);
+        ComponentName name = new ComponentName(getPackageName(),EarReceiver.class.getName());
+        int result = audioManager.requestAudioFocus(onAudioFocusChangeListener,AudioManager.STREAM_MUSIC,AudioManager.AUDIOFOCUS_GAIN);
+        if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED){
+            audioManager.registerMediaButtonEventReceiver(name);
+        }
+//        receiver_ear = new EarReceiver();
+//        receiver_ear.setmEarListener(new EarReceiver.EarListener() {
+//            @Override
+//            public void onReceiveEar() {
+//                changPP();
+//            }
+//        });
+//        IntentFilter filter_ear = new IntentFilter("android.intent.action.MEDIA_BUTTON");
+//        registerReceiver(receiver_ear,filter_ear);
 
         //为按钮设置监听事件
         bt_previous.setOnClickListener(this);
@@ -322,8 +346,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
 
 
+        @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (event.getAction()==KeyEvent.ACTION_DOWN){
+            changPP();
+        }
+        return super.onKeyDown(keyCode, event);
+    }
 
-    //    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
+//    //方法：检验是否为新的一天，若是，需要重新从网上更新背景图片
 //    private boolean isNewDay() {
 //        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
 //        int year = prefs.getInt("year",0);
@@ -420,7 +451,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         view.setOnClickPendingIntent(R.id.ib_fore_pre,getClickPendingIntent(0));
         view.setOnClickPendingIntent(R.id.ib_fore_p_p,getClickPendingIntent(1));
         view.setOnClickPendingIntent(R.id.ib_fore_next,getClickPendingIntent(2));
-        //view.setOnClickPendingIntent(R.id.notification_layout,getClickPendingIntent(3));
+        view.setOnClickPendingIntent(R.id.fore_close,getClickPendingIntent(3));
         view.setTextViewText(R.id.tv_fore_song_name,songList.get(index-1).getName());
         view.setImageViewResource(R.id.fore_img,songList.get(index-1).getImgRes());
         if (mediaPlayer.isPlaying()){
@@ -616,12 +647,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
         manager.cancel(1);
         unregisterReceiver(receiver);
-
+        audioManager.abandonAudioFocus(onAudioFocusChangeListener);
+//        unregisterReceiver(receiver_ear);
 //        Calendar date = Calendar.getInstance();
 //        SharedPreferences prefs = getSharedPreferences("date",MODE_PRIVATE);
 //        prefs.edit().putInt("year",date.get(Calendar.YEAR)).putInt("day_of_year",date.get(Calendar.DAY_OF_YEAR)).apply();
         finish();
-
-        //stopService(new Intent(this,ForegroundService.class));
     }
 }
